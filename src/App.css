@@ -1,38 +1,118 @@
-.App {
-  text-align: center;
+html, body {
+  font-family: Arial, sans-serif;
+  background-color: #f7f7f7;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
+}
+
+nav {
+  width: 100%;
+  background-color: #4CAF50;
+  padding: 10px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+}
+
+nav img {
+  height: 50px; /* Increased logo size */
+  margin: 0 20px;
+}
+
+nav h1 {
+  margin: 0;
   color: white;
+  font-size: 28px; /* Increased font size */
 }
 
-.App-link {
-  color: #61dafb;
+.container {
+  margin-top: 80px; /* Adjusted based on the height of the nav bar */
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 1400px;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+form > div {
+  margin-bottom: 20px; /* Increased margin */
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+}
+
+form > div > label {
+  margin: 0 20px; /* Increased margin */
+  font-size: 18px; /* Increased font size */
+}
+
+select {
+  height: 50px; /* Increased height */
+  width: 220px; /* Increased width */
+  margin: 0 15px 20px 10px; /* Increased margin for spacing */
+  font-size: 16px; /* Increased font size */
+  padding: 5px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+}
+
+h2 {
+  margin-top: 0;
+  text-align: center;
+  font-size: 24px; /* Increased font size */
+}
+
+button {
+  background-color: #4CAF50;
+  color: white;
+  padding: 15px 30px; /* Increased padding */
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 18px; /* Increased font size */
+}
+
+button:hover {
+  background-color: #45a049;
+}
+
+.plots {
+  width: 60%; /* Adjust the width as needed */
+  margin: 20px auto;
+  border-radius: 5px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.plots img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain; /* Ensures the image is contained within the container without being cut off */
+}
+
+p {
+  font-size: 18px; /* Increased font size for the processing message */
+  color: #4CAF50; /* Styled the processing message */
 }
