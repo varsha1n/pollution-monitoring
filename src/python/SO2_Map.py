@@ -13,21 +13,40 @@ ee.Authenticate()
 ee.Initialize(project="ee-narravarsha1")
 
 
-def SO2_Map(city, date, plot_file_path):
+def SO2_Map(city, start_date, end_date, plot_file_path):
 
-    start_date, end_date = date[:10], date[13:]
-
+    # Define city coordinates
     city_coords = {
+        "Mumbai": (19.076090, 72.877426),
+        "Delhi": (28.704060, 77.102493),
+        "Chennai": (13.082680, 80.270718),
+        "Kolkata": (22.572646, 88.363895),
+        "Bangalore": (12.971599, 77.594566),
+        "Pune": (18.520430, 73.856743),
+        "Ahmedabad": (23.022505, 72.571365),
+        "Surat": (21.170240, 72.831062),
+        "Agra": (27.176670, 78.008072),
+        "Chandigarh": (30.733315, 76.779419),
+        "Asansol": (23.683333, 86.983333),
+        "Moradabad": (28.838686, 78.773331),
+        "Muzaffarpur": (26.120886, 85.364720),
+        "Patna": (25.594095, 85.137566),
+        "Agartala": (23.831457, 91.286778),
+        "Bhopal": (23.259933, 77.412613),
+        "Rourkela": (22.260423, 84.853584),
+        "Jodhpur": (26.238947, 73.024309),
+        "Indore": (22.719568, 75.857727),
         "Hyderabad": (17.3850, 78.4867),
-        "Mumbai": (19.0760, 72.8777),
-        "Banglore": (12.9716, 77.5946),
-        "Kolkata": (22.5726, 88.3639),
-        "Pune": (18.5204, 73.8567),
     }
 
+    city = "Chennai"  # Replace with the city you are looking for
     lat, long = city_coords.get(
         city, (13.0827, 80.2707)
     )  # Default to Chennai if city not found
+    # Define the coordinates for the selected city in Indi# Define the coordinates for the selected city in India
+    lat = 17.385044
+    long = 78.486671
+    city_coords = [lat, long]
 
     # Define a buffer around the point to cover an area around the selected city (50 kilometers)
     buffer_radius = 50000  # 50 kilometers in meters
@@ -122,7 +141,7 @@ def SO2_Map(city, date, plot_file_path):
     viirs_collection = (
         ee.ImageCollection("NOAA/VIIRS/001/VNP46A2")
         .filterBounds(buffered_city_geometry)
-        .filterDate("2021-01-01", "2021-12-31")
+        .filterDate(start_date, end_date)
         .select("Gap_Filled_DNB_BRDF_Corrected_NTL")
         .mean()
         .clip(buffered_city_geometry)
@@ -222,18 +241,18 @@ def SO2_Map(city, date, plot_file_path):
     tick_labels_SO2 = ["{:.3f}".format(value) for value in tick_positions_SO2]
     cbar_SO2.ax.set_yticklabels(tick_labels_SO2, ha="left")
 
-    # Save the plot to the specified file path
-    plt.savefig(plot_file_path, dpi=300, bbox_inches="tight")
-
+    plt.savefig(plot_file_path, bbox_inches="tight", dpi=300)
     plt.close()
+    print(f"Plot saved successfully to {plot_file_path}.")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: python SO2_Map.py <city> <date>")
+    if len(sys.argv) != 4:
+        print("Usage: python CO.py <city> <start_date> <end_date>")
         sys.exit(1)
 
     city = sys.argv[1]
-    date = sys.argv[2]
+    startDate = sys.argv[2]
+    endDate = sys.argv[3]
     plot_file_path = "plots/latest_plot.png"  # Static filename
-    SO2_Map(city, date, plot_file_path)
+    SO2_Map(city, startDate, endDate, plot_file_path)

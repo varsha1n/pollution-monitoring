@@ -9,7 +9,7 @@ ee.Authenticate()
 ee.Initialize(project="ee-narravarsha1")
 
 
-def NO2_Time_Series(city, start_date, end_date, plot_file_path):
+def HCHO_Time_Series(city, start_date, end_date, plot_file_path):
 
     # Define city coordinates
     city_coords = {
@@ -43,37 +43,37 @@ def NO2_Time_Series(city, start_date, end_date, plot_file_path):
     buffer_radius = 50000  # 50 kilometers in meters
     buffered_hyderabad_geometry = ee.Geometry.Point(long, lat).buffer(buffer_radius)
 
-    # Function to calculate mean NO2 concentration for a given month
+    # Function to calculate mean HCHO concentration for a given month
     def extract_month_data(month):
         start_date = ee.Date.fromYMD(2019, month, 1)
         end_date = ee.Date.fromYMD(2019, month, calendar.monthrange(2019, month)[1])
 
         # Filter the collections for the given month
         filtered_collection = (
-            ee.ImageCollection("COPERNICUS/S5P/OFFL/L3_NO2")
+            ee.ImageCollection("COPERNICUS/S5P/OFFL/L3_HCHO")
             .filterBounds(buffered_hyderabad_geometry)
             .filterDate(start_date, end_date)
-            .select(["NO2_column_number_density"])
+            .select(["tropospheric_HCHO_column_number_density"])
         )
 
         # Check if the collections are empty
         if filtered_collection.size().getInfo() == 0:
             return None
 
-        # Calculate the mean over the collection for NO2
-        NO2_mean_month = filtered_collection.mean().clip(buffered_hyderabad_geometry)
+        # Calculate the mean over the collection for HCHO
+        HCHO_mean_month = filtered_collection.mean().clip(buffered_hyderabad_geometry)
 
-        # Convert NO2 to ppb
-        NO2_ppb_month = NO2_mean_month.multiply(1e9).rename("NO2_ppb")
+        # Convert HCHO to ppb
+        HCHO_ppb_month = HCHO_mean_month.multiply(1e9).rename("HCHO_ppb")
 
-        # Calculate the mean NO2 concentration for the month
-        mean_value = NO2_ppb_month.reduceRegion(
+        # Calculate the mean HCHO concentration for the month
+        mean_value = HCHO_ppb_month.reduceRegion(
             reducer=ee.Reducer.mean(), geometry=buffered_hyderabad_geometry, scale=1000
-        ).get("NO2_ppb")
+        ).get("HCHO_ppb")
         return mean_value
 
-    # Extract NO2 concentration values for each month
-    no2_values = []
+    # Extract HCHO concentration values for each month
+    hcho_values = []
     for month in range(1, 13):
         value = extract_month_data(month)
         if value is not None:
@@ -82,7 +82,7 @@ def NO2_Time_Series(city, start_date, end_date, plot_file_path):
         else:
             value = None
             print(f"Month: {month}, Value: None")  # Debug statement
-        no2_values.append(value)
+        hcho_values.append(value)
 
     # Define month names for x-axis labels
     month_names = [
@@ -101,16 +101,16 @@ def NO2_Time_Series(city, start_date, end_date, plot_file_path):
     ]
 
     # Replace None values with None in the plot (for consistency)
-    no2_values = [v if v is not None else None for v in no2_values]
+    hcho_values = [v if v is not None else None for v in hcho_values]
 
-    # Create a Plotly trace for the NO2 concentration data
+    # Create a Plotly trace for the HCHO concentration data
     trace = go.Scatter(
         x=month_names,
-        y=no2_values,
+        y=hcho_values,
         mode="lines+markers+text",  # Include text mode to display y values
-        name="NO2 Concentration",
+        name="HCHO Concentration",
         hoverinfo="x+y",
-        text=no2_values,  # Display y values as text
+        text=hcho_values,  # Display y values as text
         textposition="top center",  # Position of the text relative to the markers
         line=dict(color="royalblue", width=2, dash="dash"),
         marker=dict(color="darkorange", size=8, symbol="circle"),
@@ -119,7 +119,7 @@ def NO2_Time_Series(city, start_date, end_date, plot_file_path):
     # Create layout for the plot
     layout = go.Layout(
         title={
-            "text": "Monthly Mean NO2 Concentration for Bangalore in 2019 (50km radius)",
+            "text": "Monthly Mean HCHO Concentration for Bangalore in 2019 (50km radius)",
             "x": 0.5,
             "xanchor": "center",
         },
@@ -132,7 +132,7 @@ def NO2_Time_Series(city, start_date, end_date, plot_file_path):
             gridcolor="lightgrey",
         ),
         yaxis=dict(
-            title="Mean NO2 Concentration (ppb)", showgrid=True, gridcolor="lightgrey"
+            title="Mean HCHO Concentration (ppb)", showgrid=True, gridcolor="lightgrey"
         ),
         plot_bgcolor="whitesmoke",
         hovermode="closest",
@@ -147,16 +147,18 @@ def NO2_Time_Series(city, start_date, end_date, plot_file_path):
 
     # Create figure
     fig = go.Figure(data=[trace], layout=layout)
+
+    # Save plot to the file
     pio.write_image(fig, plot_file_path, width=1500, height=1000)
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
-        print("Usage: python CO.py <city> <start_date> <end_date>")
+        print("Usage: python HCHO_Time_series.py <city> <start_date> <end_date>")
         sys.exit(1)
 
     city = sys.argv[1]
     start_date = sys.argv[2]
     end_date = sys.argv[3]
     plot_file_path = "plots/latest_plot.png"  # Static filename
-    NO2_Time_Series(city, start_date, end_date, plot_file_path)
+    HCHO_Time_Series(city, start_date, end_date, plot_file_path)

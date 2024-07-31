@@ -14,20 +14,32 @@ app.use(bodyParser.json());
 app.use(cors());
 
 app.post("/pollution-data", (req, res) => {
-  const { city, pollutant, date, plotType } = req.body;
+  const { city, pollutant, startDate, endDate, plotType } = req.body;
 
-  if (!city || !pollutant || !date || !plotType) {
+  if (!city || !pollutant || !startDate || !endDate || !plotType) {
     return res.status(400).send("All fields are required.");
   }
 
-  var pyfile = "python/" + String(pollutant) + "_" + String(plotType) + ".py";
-  // Run the Python script with the provided values
-  const pythonProcess = spawn("python", [pyfile, city, date]);
+  const pythonFilePath = path.join(
+    __dirname,
+    "python",
+    `${pollutant}_${plotType}.py`
+  );
+
+  if (!fs.existsSync(pythonFilePath)) {
+    return res.status(404).send("Python script not found.");
+  }
+
+  const pythonProcess = spawn("python", [
+    pythonFilePath,
+    city,
+    startDate,
+    endDate,
+  ]);
 
   let errorData = "";
 
   pythonProcess.stderr.on("data", (data) => {
-    console.error(`stderr: ${data}`);
     errorData += data.toString();
   });
 
@@ -38,7 +50,6 @@ app.post("/pollution-data", (req, res) => {
 
   pythonProcess.on("close", (code) => {
     if (code === 0) {
-      // Check if the plot file was created
       if (fs.existsSync(plotFilePath)) {
         res.sendFile(plotFilePath, (err) => {
           if (err) {

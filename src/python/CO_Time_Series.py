@@ -1,175 +1,201 @@
-import sys
 import ee
-import requests
-import numpy as np
-import matplotlib.pyplot as plt
-from PIL import Image
-from io import BytesIO
-from matplotlib.colors import LinearSegmentedColormap
-import matplotlib.ticker as ticker
-import os
+import plotly.graph_objs as go
+import calendar
+import plotly.io as pio
+import sys
 
 # Initialize the Earth Engine API
 ee.Authenticate()
 ee.Initialize(project="ee-narravarsha1")
 
 
-def CO_Time_Series(city, date, plot_file_path):
+def CO_Time_Series(city, start_date, end_date, plot_file_path):
 
-    start_date, end_date = date[:10], date[13:]
     # Define city coordinates
     city_coords = {
+        "Mumbai": (19.076090, 72.877426),
+        "Delhi": (28.704060, 77.102493),
+        "Chennai": (13.082680, 80.270718),
+        "Kolkata": (22.572646, 88.363895),
+        "Bangalore": (12.971599, 77.594566),
+        "Pune": (18.520430, 73.856743),
+        "Ahmedabad": (23.022505, 72.571365),
+        "Surat": (21.170240, 72.831062),
+        "Agra": (27.176670, 78.008072),
+        "Chandigarh": (30.733315, 76.779419),
+        "Asansol": (23.683333, 86.983333),
+        "Moradabad": (28.838686, 78.773331),
+        "Muzaffarpur": (26.120886, 85.364720),
+        "Patna": (25.594095, 85.137566),
+        "Agartala": (23.831457, 91.286778),
+        "Bhopal": (23.259933, 77.412613),
+        "Rourkela": (22.260423, 84.853584),
+        "Jodhpur": (26.238947, 73.024309),
+        "Indore": (22.719568, 75.857727),
         "Hyderabad": (17.3850, 78.4867),
-        "Mumbai": (19.0760, 72.8777),
-        "Banglore": (12.9716, 77.5946),
-        "Kolkata": (22.5726, 88.3639),
-        "Pune": (18.5204, 73.8567),
     }
 
     lat, long = city_coords.get(
         city, (13.0827, 80.2707)
     )  # Default to Chennai if city not found
 
-    # Define a buffer around the point to cover an area around Bangalore (25 kilometers)
-    buffer_radius = 25000  # 25 kilometers in meters
-    buffered_bangalore_geometry = ee.Geometry.Point(long, lat).buffer(buffer_radius)
-
-    # Load the CO image collection
-    co_collection = (
-        ee.ImageCollection("COPERNICUS/S5P/OFFL/L3_CO")
-        .filterBounds(buffered_bangalore_geometry)
-        .filterDate(start_date, end_date)
-        .select("CO_column_number_density")
-    )
-
-    # Load the surface pressure image collection (using ECMWF ERA5 dataset)
-    surface_pressure_collection = (
-        ee.ImageCollection("ECMWF/ERA5_LAND/DAILY_AGGR")
-        .filterBounds(buffered_bangalore_geometry)
-        .filterDate(start_date, end_date)
-        .select("surface_pressure")
-    )
-
-    # Calculate the mean over the collection for CO and surface pressure
-    CO_mean = co_collection.mean().clip(buffered_bangalore_geometry)
-    surface_pressure_mean = surface_pressure_collection.mean().clip(
-        buffered_bangalore_geometry
-    )
+    # Define a buffer around the point to cover an area around the city (50 kilometers)
+    buffer_radius = 50000  # 50 kilometers in meters
+    buffered_city_geometry = ee.Geometry.Point(long, lat).buffer(buffer_radius)
 
     # Constants
     g = 9.82  # m/s^2
-    m_CO = 0.02801  # kg/mol (CO molar mass)
+    m_H2O = 0.01801528  # kg/mol
     m_dry_air = 0.0289644  # kg/mol
 
-    # Calculate TC_dry_air
-    TC_dry_air = surface_pressure_mean.divide(g * m_dry_air)
+    # Function to calculate mean CO concentration for a given month
+    def extract_month_data(month):
+        start_date = ee.Date.fromYMD(2019, month, 1)
+        end_date = ee.Date.fromYMD(2019, month, calendar.monthrange(2019, month)[1])
 
-    # Calculate XCO
-    XCO = CO_mean.divide(TC_dry_air).rename("XCO")
+        # Filter the collections for the given month
+        filtered_collection = (
+            ee.ImageCollection("COPERNICUS/S5P/OFFL/L3_CO")
+            .filterBounds(buffered_city_geometry)
+            .filterDate(start_date, end_date)
+            .select(["CO_column_number_density", "H2O_column_number_density"])
+        )
 
-    # Convert XCO to ppb
-    XCO_ppb = XCO.multiply(1e9).rename("XCO_ppb")
+        surface_pressure_collection = (
+            ee.ImageCollection("ECMWF/ERA5_LAND/DAILY_AGGR")
+            .filterBounds(buffered_city_geometry)
+            .filterDate(start_date, end_date)
+            .select("surface_pressure")
+        )
 
-    # Calculate the minimum and maximum CO values
-    min_max = XCO_ppb.reduceRegion(
-        reducer=ee.Reducer.minMax(),
-        geometry=buffered_bangalore_geometry,
-        scale=1113.2,
-        maxPixels=1e9,
-    )
+        # Check if the collections are empty
+        if (
+            filtered_collection.size().getInfo() == 0
+            or surface_pressure_collection.size().getInfo() == 0
+        ):
+            return None
 
-    # Get min and max values and round them to two decimal places
-    CO_min = round(min_max.get("XCO_ppb_min").getInfo(), 3)
-    CO_max = round(min_max.get("XCO_ppb_max").getInfo(), 3)
+        # Calculate the mean over the collection for CO, H2O, and surface pressure
+        CO_mean_month = (
+            filtered_collection.select("CO_column_number_density")
+            .mean()
+            .clip(buffered_city_geometry)
+        )
+        H2O_mean_month = (
+            filtered_collection.select("H2O_column_number_density")
+            .mean()
+            .clip(buffered_city_geometry)
+        )
+        surface_pressure_mean_month = surface_pressure_collection.mean().clip(
+            buffered_city_geometry
+        )
 
-    # Print the minimum and maximum CO values
-    print("Minimum CO value:", CO_min)
-    print("Maximum CO value:", CO_max)
+        # Calculate TC_dry_air for the month
+        TC_dry_air_month = surface_pressure_mean_month.divide(g * m_dry_air).subtract(
+            H2O_mean_month.multiply(m_H2O / m_dry_air)
+        )
 
-    # Define a color palette based on CO concentration levels
-    palette = [
-        "#9e0142",
-        "#d8424d",
-        "#f57948",
-        "#fdbe6e",
-        "#feeda1",
-        "#f0f9a8",
-        "#bee5a0",
-        "#73c7a4",
-        "#378dba",
-        "#5e4fa2",
+        # Calculate XCO for the month
+        XCO_month = CO_mean_month.divide(TC_dry_air_month).rename("XCO")
+
+        # Convert XCO to ppb
+        XCO_ppb_month = XCO_month.multiply(1e9).rename("XCO_ppb")
+
+        # Calculate the mean CO concentration for the month
+        mean_value = XCO_ppb_month.reduceRegion(
+            reducer=ee.Reducer.mean(), geometry=buffered_city_geometry, scale=1000
+        ).get("XCO_ppb")
+        return mean_value
+
+    # Extract CO concentration values for each month
+    co_values = []
+    for month in range(1, 13):
+        value = extract_month_data(month)
+        if value is not None:
+            value = round(value.getInfo(), 3)  # Round to 3 decimals
+            print(f"Month: {month}, Value: {value}")  # Debug statement
+        else:
+            value = None
+            print(f"Month: {month}, Value: None")  # Debug statement
+        co_values.append(value)
+
+    # Define month names for x-axis labels
+    month_names = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
     ]
 
-    # Get a URL to a thumbnail image of the CO concentration data
-    thumbnail_url = XCO_ppb.getThumbURL(
-        {
-            "min": CO_min,
-            "max": CO_max,
-            "region": buffered_bangalore_geometry.bounds().getInfo()["coordinates"],
-            "dimensions": 512,
-            "palette": palette,
-        }
+    # Replace None values with None in the plot (for consistency)
+    co_values = [v if v is not None else None for v in co_values]
+
+    # Create a Plotly trace for the CO concentration data
+    trace = go.Scatter(
+        x=month_names,
+        y=co_values,
+        mode="lines+markers+text",  # Include text mode to display y values
+        name="CO Concentration",
+        hoverinfo="x+y",
+        text=co_values,  # Display y values as text
+        textposition="top center",  # Position of the text relative to the markers
+        line=dict(color="royalblue", width=2, dash="dash"),
+        marker=dict(color="darkorange", size=8, symbol="circle"),
     )
 
-    # Download the image and convert it to a NumPy array
-    response = requests.get(thumbnail_url)
-    img = Image.open(BytesIO(response.content))
-    img_array = np.array(img)
+    # Create layout for the plot
+    layout = go.Layout(
+        title={
+            "text": f"Monthly Mean CO Concentration for {city} in 2019 (50km radius)",
+            "x": 0.5,
+            "xanchor": "center",
+        },
+        xaxis=dict(
+            title="Month",
+            tickmode="array",
+            tickvals=month_names,
+            ticktext=month_names,
+            showgrid=True,
+            gridcolor="lightgrey",
+        ),
+        yaxis=dict(
+            title="Mean CO Concentration (ppb)",
+            showgrid=True,
+            gridcolor="lightgrey",
+        ),
+        plot_bgcolor="whitesmoke",
+        hovermode="closest",
+        showlegend=True,
+        legend=dict(
+            x=0.1,
+            y=1.1,
+            bgcolor="rgba(255, 255, 255, 0)",
+            bordercolor="rgba(255, 255, 255, 0)",
+        ),
+    )
 
-    # Get the geographic extent
-    coords = buffered_bangalore_geometry.bounds().getInfo()["coordinates"][0]
-    extent = [coords[0][0], coords[2][0], coords[0][1], coords[2][1]]
+    # Create figure
+    fig = go.Figure(data=[trace], layout=layout)
 
-    # Create a custom colormap
-    custom_cmap = LinearSegmentedColormap.from_list("custom_cmap", palette)
-
-    # Plot the image using Matplotlib with the custom colormap
-    fig, ax = plt.subplots()  # Create a figure and axes
-    cax = ax.imshow(
-        img_array, extent=extent, origin="upper", cmap=custom_cmap
-    )  # Specify the custom colormap
-    ax.set_title("CO Concentration around {city} ({start_date} to {end_date})")
-    ax.set_xlabel("Longitude")
-    ax.set_ylabel("Latitude")
-
-    # Define the number of ticks
-    num_ticks = 5
-
-    # Calculate the interval between ticks
-    interval = (CO_max - CO_min) / (num_ticks - 1)
-
-    # Calculate the tick positions
-    tick_positions = [CO_min + i * interval for i in range(num_ticks)]
-
-    # Create a dummy ScalarMappable to use with the colorbar
-    norm = plt.Normalize(vmin=CO_min, vmax=CO_max)
-    sm = plt.cm.ScalarMappable(cmap=custom_cmap, norm=norm)
-    sm.set_array([])
-
-    # Create the colorbar
-    cbar = plt.colorbar(sm, ax=ax, orientation="vertical")
-    cbar.set_label("CO Concentration (ppb)")
-
-    # Set ticker to manually specify tick positions
-    tick_locator = ticker.FixedLocator(tick_positions)
-    cbar.locator = tick_locator
-    cbar.update_ticks()
-
-    # Set custom tick labels
-    tick_labels = ["{:.3f}".format(value) for value in tick_positions]
-    cbar.ax.set_yticklabels(tick_labels, ha="left")
-
-    # Save plot to the file (overwrites the existing file)
-    plt.savefig(plot_file_path, bbox_inches="tight", dpi=300)
-    plt.close()
+    # Save plot to the file
+    pio.write_image(fig, plot_file_path, width=1500, height=1000)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: python CO.py <city> <date>")
+    if len(sys.argv) != 4:
+        print("Usage: python CO.py <city> <start_date> <end_date>")
         sys.exit(1)
 
     city = sys.argv[1]
-    date = sys.argv[2]
+    start_date = sys.argv[2]
+    end_date = sys.argv[3]
     plot_file_path = "plots/latest_plot.png"  # Static filename
-    CO_Time_Series(city, date, plot_file_path)
+    CO_Time_Series(city, start_date, end_date, plot_file_path)

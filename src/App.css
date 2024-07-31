@@ -16,36 +16,44 @@ body {
 
 nav {
   width: 100%;
-  background-color: #4CAF50;
-  padding: 10px 0;
+  max-width: 1500px; /* Set a maximum width for the nav */
   display: flex;
-  justify-content: space-between;
+  justify-content: space-between; /* Space out items between left and right */
   align-items: center;
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 1000;
+  padding: 10px 0; /* Adjust padding for spacing */
 }
 
-nav img {
-  height: 50px; /* Increased logo size */
-  margin: 0 20px;
+.logo1 {
+  width: 525px; /* Adjust width as needed */
 }
 
-nav h1 {
-  margin: 0;
-  color: white;
-  font-size: 28px; /* Increased font size */
+.nav-right {
+  display: flex;
+  align-items: center;
+}
+
+
+.logo2 {
+  width: 80px;
+  padding-left: 600px;
+}
+
+.logo3 {
+  width: 100px;
+}
+
+.logo4 {
+  width: 60px;
 }
 
 .container {
-  margin-top: 80px; /* Adjusted based on the height of the nav bar */
-  padding: 20px;
+  margin-top: 20px !important;
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
-  max-width: 1400px;
+  max-width: 1400px; /* Set a maximum width for the container */
+  margin: 0 auto; /* Center the container */
 }
 
 form {
@@ -54,27 +62,36 @@ form {
   align-items: center;
 }
 
-form > div {
-  margin-bottom: 20px; /* Increased margin */
+.form-group {
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
-  align-items: center;
+  flex-wrap: wrap;
+  background-color: #555555; /* Background color for the form group */
+  border-radius: 5px;
 }
 
-form > div > label {
-  margin: 0 20px; /* Increased margin */
+form > .form-group > label {
+  /* Adjusted margin for better spacing */
   font-size: 18px; /* Increased font size */
 }
 
 select {
   height: 50px; /* Increased height */
-  width: 220px; /* Increased width */
-  margin: 0 15px 20px 10px; /* Increased margin for spacing */
+  width: 180px; /* Increased width */
   font-size: 16px; /* Increased font size */
-  padding: 5px;
   border-radius: 5px;
-  border: 1px solid #ccc;
+  display: inline-block; /* Ensure the select menu is inline-block */
+  background-color: #282a2c; /* Background color */
+  color: white; /* Text color */
+}
+
+select option {
+  background-color: black;
+}
+
+select:hover {
+  background-color: #a01300; /* Change background color on hover */
+  color: white; /* Change text color on hover */
 }
 
 h2 {
@@ -84,17 +101,45 @@ h2 {
 }
 
 button {
-  background-color: #4CAF50;
+  background-color: #282a2c;
   color: white;
   padding: 15px 30px; /* Increased padding */
   border: none;
   border-radius: 5px;
   cursor: pointer;
+  width: 220px;
   font-size: 18px; /* Increased font size */
 }
 
 button:hover {
-  background-color: #45a049;
+  background-color: #a01300;
+}
+
+.date {
+  height: 50px; /* Match height with select elements */
+  width: 180px; /* Match width with select elements */
+  font-size: 16px; /* Match font size with select elements */
+  border-radius: 5px; /* Match border radius with select elements */
+  background-color: #282a2c; /* Match background color */
+  color: white; /* Match text color */
+  border: 1px solid #555; /* Border styling */
+  padding: 0 10px; /* Padding for better appearance */
+}
+
+.date::-webkit-calendar-picker-indicator {
+  background-color: #282a2c; /* Background color of the calendar picker */
+  color: white; /* Text color */
+}
+
+.date:hover {
+  background-color: #a01300; /* Change background color on hover */
+  color: white; /* Change text color on hover */
+}
+
+.date:focus {
+  outline: none; /* Remove default outline */
+  border-color: #a01300; /* Border color on focus */
+  background-color: #333; /* Background color on focus */
 }
 
 .plots {
@@ -114,5 +159,5 @@ button:hover {
 
 p {
   font-size: 18px; /* Increased font size for the processing message */
-  color: #4CAF50; /* Styled the processing message */
+  color: #a01300; /* Styled the processing message */
 }
