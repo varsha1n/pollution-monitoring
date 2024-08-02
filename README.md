@@ -1,3 +1,13 @@
+# Environmental Data Visualization
+
+Environmental Data Visualization: Utilized Google Earth Engine and Python to process and visualize satellite data, generating detailed CO concentration maps, time-series plots, and nighttime light maps for major Indian cities, with custom colormaps and high-resolution output.
+
+Full Stack Development: Developed a comprehensive ISRO mock website using the MERN stack, featuring dynamic React components, RESTful APIs with Node.js and Express.js, and integrated real-time satellite data from Google Earth Engine API.
+
+
+![React App - Google Chrome 02-08-2024 12_49_55](https://github.com/user-attachments/assets/89a5a699-3661-4747-b46f-0dc81c24b3a8)
+
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
