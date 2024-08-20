@@ -24,18 +24,18 @@ const App = () => {
 
   const [errorMessage, setErrorMessage] = useState("");
 
+  // NTL-specific states
   const [ntlCity, setNtlCity] = useState("");
   const [ntlYear, setNtlYear] = useState("");
   const [halfYear, setHalfYear] = useState("");
-  const [ntlduration, setNtlDuration] = useState("");
   const [ntlImageSrc, setNtlImageSrc] = useState("");
 
+  // Separate Time Series form states
   const [timeSeriesCity, setTimeSeriesCity] = useState("");
   const [timeSeriesPollutant, setTimeSeriesPollutant] = useState("");
   const [timeSeriesYear, setTimeSeriesYear] = useState("");
   const [timeSeriesSeason, setTimeSeriesSeason] = useState("");
   const [timeSeriesImageSrc, setTimeSeriesImageSrc] = useState("");
-  const [timeduration, settimeDuration] = useState(""); // New state for duration
 
   // Handlers for Pollution Data form
   const handleCityChange = (e) => setCity(e.target.value);
@@ -49,22 +49,18 @@ const App = () => {
   };
   const handleTimeframeChange = (e) => setTimeframe(e.target.value);
 
+  // Handlers for NTL Data form
   const handleNtlCityChange = (e) => setNtlCity(e.target.value);
   const handleNtlYearChange = (e) => setNtlYear(e.target.value);
   const handleHalfYearChange = (e) => setHalfYear(e.target.value);
-  const handleNtlDurationChange = (e) => {
-    setNtlDuration(e.target.value);
-    setNtlYear(""); // Reset year and half-year when duration changes
-    setHalfYear("");
-  };
 
+  // Handlers for Separate Time Series form
   const handleTimeSeriesCityChange = (e) => setTimeSeriesCity(e.target.value);
   const handleTimeSeriesPollutantChange = (e) =>
     setTimeSeriesPollutant(e.target.value);
   const handleTimeSeriesYearChange = (e) => setTimeSeriesYear(e.target.value);
   const handleTimeSeriesSeasonChange = (e) =>
     setTimeSeriesSeason(e.target.value);
-  const handletimeDurationChange = (e) => settimeDuration(e.target.value); // Handle duration change
   const [timeSeriesHtmlContent, setTimeSeriesHtmlContent] = useState("");
   const [MapHtmlContent, setMapHtmlContent] = useState("");
 
@@ -137,39 +133,10 @@ const App = () => {
       };
     };
 
-    if (duration === "Date") {
-      // Ensure the startDate is in the format "dd-mm-yyyy"
-      const [year, month, day] = startDate.split("-");
-      console.log("startDate", startDate);
-
-      // Create the date object using year, month (0-indexed), and day
-      const start = new Date(year, month - 1, day); // Month is 0-indexed
-      console.log("start", start);
-
-      // Check if the date object is valid
-      if (isNaN(start.getTime())) {
-        setErrorMessage("Invalid date format. Please select a valid date.");
-        setLoadingPollution(false);
-        return;
-      }
-
-      // Create the end date by adding one day to the start date
-      const end = new Date(start);
-      end.setDate(start.getDate() + 1);
-      console.log("end", end);
-
-      // Format the start and end dates to yyyy-mm-dd
-      formattedStartDate = start.toISOString().split("T")[0];
-      formattedEndDate = end.toISOString().split("T")[0];
-      console.log("formattedStartDate", formattedStartDate);
-      console.log("formattedEndDate", formattedEndDate);
-
-      // Validate date range
-      if (!isValidDateRange(formattedStartDate, formattedEndDate)) {
-        setErrorMessage("Data is not available for the selected date range.");
-        setLoadingPollution(false);
-        return;
-      }
+    if (duration === "Date" && !isValidDateRange(startDate, endDate)) {
+      setErrorMessage("Data is not available for the selected date range.");
+      setLoadingPollution(false);
+      return;
     } else if (duration === "Season") {
       const seasonMap = {
         "march-may": ["03-01", "05-31"],
@@ -255,10 +222,7 @@ const App = () => {
   const handleNtlSubmit = async (e) => {
     e.preventDefault();
     setLoadingNTL(true);
-    if (ntlduration === "full-year" && !halfYear) {
-      setHalfYear("jan-dec");
-    }
-    console.log(ntlCity, ntlYear, halfYear);
+
     try {
       const response = await fetch("http://localhost:3001/ntl-data", {
         method: "POST",
@@ -288,9 +252,8 @@ const App = () => {
     e.preventDefault();
     setLoadingTimeSeries(true);
 
-    let formattedStartDate = "";
-    let formattedEndDate = "";
-    console.log(timeSeriesSeason, timeSeriesYear);
+    let formattedStartDate = startDate;
+    let formattedEndDate = endDate;
 
     const seasonMap = {
       "march-may": ["03-01", "05-31"],
@@ -299,18 +262,9 @@ const App = () => {
       "december-february": ["12-01", "02-28"],
     };
 
-    if (timeduration === "season" && timeSeriesSeason) {
-      [formattedStartDate, formattedEndDate] = seasonMap[timeSeriesSeason];
-      formattedStartDate = `${timeSeriesYear}-${formattedStartDate}`;
-      formattedEndDate = `${timeSeriesYear}-${formattedEndDate}`;
-    } else if (timeduration === "year") {
-      formattedStartDate = `${timeSeriesYear}-01-01`;
-      formattedEndDate = `${timeSeriesYear}-12-31`;
-    } else {
-      console.error("Invalid duration or missing season.");
-      setLoadingTimeSeries(false);
-      return;
-    }
+    [formattedStartDate, formattedEndDate] = seasonMap[timeSeriesSeason];
+    formattedStartDate = `${timeSeriesYear}-${formattedStartDate}`;
+    formattedEndDate = `${timeSeriesYear}-${formattedEndDate}`;
 
     try {
       const response = await fetch("http://localhost:3001/time-series-data", {
@@ -503,6 +457,14 @@ const App = () => {
                   value={startDate}
                   onChange={handleStartDateChange}
                 />
+
+                <label htmlFor="endDate">End Date:</label>
+                <input
+                  type="date"
+                  id="endDate"
+                  value={endDate}
+                  onChange={handleEndDateChange}
+                />
               </>
             )}
 
@@ -563,63 +525,22 @@ const App = () => {
               {renderAdditionalOptions("city")}
             </select>
 
-            <div>
-              <label htmlFor="duration">Duration:</label>
-              <select
-                id="duration"
-                value={ntlduration}
-                onChange={handleNtlDurationChange}
-              >
-                <option value="">Select duration</option>
-                <option value="half-year">Half-Year</option>
-                <option value="full-year">Full-Year</option>
-              </select>
+            <label htmlFor="ntlYear">Year:</label>
+            <select id="ntlYear" value={ntlYear} onChange={handleNtlYearChange}>
+              <option value="">Select a year</option>
+              {renderAdditionalOptions("year")}
+            </select>
 
-              {ntlduration === "half-year" && (
-                <div>
-                  <label htmlFor="year">Year:</label>
-                  <select
-                    id="year"
-                    value={ntlYear}
-                    onChange={handleNtlYearChange}
-                  >
-                    <option value="">Select year</option>
-                    <option value="2020">2020</option>
-                    <option value="2021">2021</option>
-                    <option value="2022">2022</option>
-                    {/* Add more years as needed */}
-                  </select>
-
-                  <label htmlFor="halfYear">Half Year:</label>
-                  <select
-                    id="halfYear"
-                    value={halfYear}
-                    onChange={handleHalfYearChange}
-                  >
-                    <option value="">Select half year</option>
-                    <option value="jan-jun">Jan-Jun</option>
-                    <option value="jul-dec">Jul-Dec</option>
-                  </select>
-                </div>
-              )}
-
-              {ntlduration === "full-year" && (
-                <div>
-                  <label htmlFor="year">Year:</label>
-                  <select
-                    id="year"
-                    value={ntlYear}
-                    onChange={handleNtlYearChange}
-                  >
-                    <option value="">Select year</option>
-                    <option value="2020">2020</option>
-                    <option value="2021">2021</option>
-                    <option value="2022">2022</option>
-                    {/* Add more years as needed */}
-                  </select>
-                </div>
-              )}
-            </div>
+            <label htmlFor="halfYear">Half Year:</label>
+            <select
+              id="halfYear"
+              value={halfYear}
+              onChange={handleHalfYearChange}
+            >
+              <option value="">Select half year</option>
+              <option value="jan-jun">Jan-Jun</option>
+              <option value="jul-dec">Jul-Dec</option>
+            </select>
 
             <button type="submit" disabled={loadingNTL}>
               {loadingNTL ? "Loading..." : "Submit"}
@@ -665,55 +586,25 @@ const App = () => {
               <option value="SO2">SO2</option>
             </select>
 
-            <label htmlFor="duration">Duration:</label>
+            <label htmlFor="timeSeriesYear">Year:</label>
             <select
-              id="duration"
-              value={timeduration}
-              onChange={handletimeDurationChange}
+              id="timeSeriesYear"
+              value={timeSeriesYear}
+              onChange={handleTimeSeriesYearChange}
             >
-              <option value="">Select duration</option>
-              <option value="year">Year</option>
-              <option value="season">Season</option>
+              <option value="">Select a year</option>
+              {renderAdditionalOptions("year")}
             </select>
 
-            {/* Conditionally render based on selected duration */}
-            {timeduration === "year" && (
-              <div>
-                <label htmlFor="timeSeriesYear">Year:</label>
-                <select
-                  id="timeSeriesYear"
-                  value={timeSeriesYear}
-                  onChange={handleTimeSeriesYearChange}
-                >
-                  <option value="">Select a year</option>
-                  {renderAdditionalOptions("year")}
-                </select>
-              </div>
-            )}
-
-            {timeduration === "season" && (
-              <div>
-                <label htmlFor="timeSeriesYear">Year:</label>
-                <select
-                  id="timeSeriesYear"
-                  value={timeSeriesYear}
-                  onChange={handleTimeSeriesYearChange}
-                >
-                  <option value="">Select a year</option>
-                  {renderAdditionalOptions("year")}
-                </select>
-
-                <label htmlFor="timeSeriesSeason">Season:</label>
-                <select
-                  id="timeSeriesSeason"
-                  value={timeSeriesSeason}
-                  onChange={handleTimeSeriesSeasonChange}
-                >
-                  <option value="">Select a season</option>
-                  {renderAdditionalOptions("season")}
-                </select>
-              </div>
-            )}
+            <label htmlFor="timeSeriesSeason">Season:</label>
+            <select
+              id="timeSeriesSeason"
+              value={timeSeriesSeason}
+              onChange={handleTimeSeriesSeasonChange}
+            >
+              <option value="">Select a season</option>
+              {renderAdditionalOptions("season")}
+            </select>
 
             <button type="submit" enabled={loadingTimeSeries}>
               {loadingTimeSeries ? "Loading..." : "Submit"}
@@ -727,7 +618,7 @@ const App = () => {
               <iframe
                 srcDoc={timeSeriesHtmlContent}
                 title="Time Series Plot"
-                style={{ width: "100%", height: "5000px", border: "none" }}
+                style={{ width: "100%", height: "600px", border: "none" }}
               />
             </div>
           ) : (

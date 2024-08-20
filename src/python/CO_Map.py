@@ -6,10 +6,11 @@ import matplotlib.ticker as ticker
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from io import BytesIO
+from datetime import datetime, timedelta
 import sys
-import os
+from datetime import datetime, timedelta
 
-# Authenticate and initialize Earth Engine
+# Initialize the Earth Engine API
 ee.Authenticate()
 ee.Initialize(project="ee-narravarsha1")
 
@@ -40,20 +41,31 @@ def CO_Map(city, start_date, end_date, plot_file_path):
         "Hyderabad": (17.3850, 78.4867),
     }
 
+    city = "Chennai"  # Replace with the city you are looking for
     lat, long = city_coords.get(
         city, (13.0827, 80.2707)
     )  # Default to Chennai if city not found
+    # Define the coordinates for city, India
+    lat = 17.385044
+    long = 78.486671
 
-    # Define a buffer around the point to cover an area around the selected city (50 kilometers)
+    # Define a buffer around the point to cover an area around city (50 kilometers)
     buffer_radius = 50000  # 50 kilometers in meters
-    buffered_city_geometry = ee.Geometry.Point([long, lat]).buffer(buffer_radius)
+    buffered_city_geometry = ee.Geometry.Point(long, lat).buffer(buffer_radius)
 
-    # Load the CO and H2O image collection (using OFFL dataset)
+    # Load the NO2 and H2O image collection (using OFFL dataset)
     collection = (
+        ee.ImageCollection("COPERNICUS/S5P/OFFL/L3_NO2")
+        .filterBounds(buffered_city_geometry)
+        .filterDate(start_date, end_date)
+        .select("NO2_column_number_density")
+    )
+
+    watervapor_collection = (
         ee.ImageCollection("COPERNICUS/S5P/OFFL/L3_CO")
         .filterBounds(buffered_city_geometry)
         .filterDate(start_date, end_date)
-        .select(["CO_column_number_density", "H2O_column_number_density"])
+        .select("H2O_column_number_density")
     )
 
     # Load the surface pressure image collection (using ECMWF ERA5 dataset)
@@ -65,16 +77,12 @@ def CO_Map(city, start_date, end_date, plot_file_path):
     )
 
     # Calculate the mean over the collection for CO, H2O, and surface pressure
-    CO_mean = (
-        collection.select("CO_column_number_density")
+    NO2_mean = (
+        collection.select("NO2_column_number_density")
         .mean()
         .clip(buffered_city_geometry)
     )
-    H2O_mean = (
-        collection.select("H2O_column_number_density")
-        .mean()
-        .clip(buffered_city_geometry)
-    )
+    watervapor_mean = watervapor_collection.mean().clip(buffered_city_geometry)
     surface_pressure_mean = surface_pressure_collection.mean().clip(
         buffered_city_geometry
     )
@@ -86,17 +94,17 @@ def CO_Map(city, start_date, end_date, plot_file_path):
 
     # Calculate TC_dry_air
     TC_dry_air = surface_pressure_mean.divide(g * m_dry_air).subtract(
-        H2O_mean.multiply(m_H2O / m_dry_air)
+        watervapor_mean.multiply(m_H2O / m_dry_air)
     )
 
-    # Calculate XCO
-    XCO = CO_mean.divide(TC_dry_air).rename("XCO")
+    # Calculate XNO2
+    XNO2 = NO2_mean.divide(TC_dry_air).rename("XNO2")
 
-    # Convert XCO to ppb
-    XCO_ppb = XCO.multiply(1e9).rename("XCO_ppb")
+    # Convert XNO2 to ppb
+    XNO2_ppb = XNO2.multiply(1e9).rename("XNO2_ppb")
 
-    # Calculate the minimum and maximum CO values
-    min_max = XCO_ppb.reduceRegion(
+    # Calculate the minimum and maximum NO2 values
+    min_max = XNO2_ppb.reduceRegion(
         reducer=ee.Reducer.minMax(),
         geometry=buffered_city_geometry,
         scale=1113.2,
@@ -104,148 +112,105 @@ def CO_Map(city, start_date, end_date, plot_file_path):
     )
 
     # Get min and max values and round them to two decimal places
-    CO_min = round(min_max.get("XCO_ppb_min").getInfo(), 3)
-    CO_max = round(min_max.get("XCO_ppb_max").getInfo(), 3)
+    NO2_min = round(min_max.get("XNO2_ppb_min").getInfo(), 3)
+    NO2_max = round(min_max.get("XNO2_ppb_max").getInfo(), 3)
 
-    # Print the minimum and maximum CO values
-    print("Minimum CO value:", CO_min)
-    print("Maximum CO value:", CO_max)
+    # Print the minimum and maximum NO2 values
+    print("Minimum NO2 value:", NO2_min)
+    print("Maximum NO2 value:", NO2_max)
 
-    # Define a color palette based on CO concentration levels
-    palette_CO = [
-        "#9e0142",
-        "#d8424d",
-        "#f57948",
-        "#fdbe6e",
-        "#feeda1",
-        "#f0f9a8",
-        "#bee5a0",
-        "#73c7a4",
-        "#378dba",
+    # Define a color palette based on NO2 concentration levels
+    palette = [
         "#5e4fa2",
+        "#378dba",
+        "#73c7a4",
+        "#bee5a0",
+        "#f0f9a8",
+        "#feeda1",
+        "#fdbe6e",
+        "#f57948",
+        "#d8424d",
+        "#9e0142",
     ]
 
-    # Get a URL to a thumbnail image of the CO concentration data
-    thumbnail_url_CO = XCO_ppb.getThumbURL(
+    # Get a URL to a thumbnail image of the NO2 concentration data
+    thumbnail_url = XNO2_ppb.getThumbURL(
         {
-            "min": CO_min,
-            "max": CO_max,
+            "min": NO2_min,
+            "max": NO2_max,
             "region": buffered_city_geometry.bounds().getInfo()["coordinates"],
             "dimensions": 512,
-            "palette": palette_CO,
+            "palette": palette,
         }
     )
 
     # Download the image and convert it to a NumPy array
-    response_CO = requests.get(thumbnail_url_CO)
-    img_CO = Image.open(BytesIO(response_CO.content))
-    img_array_CO = np.array(img_CO)
+    response = requests.get(thumbnail_url)
+    img = Image.open(BytesIO(response.content))
+    img_array = np.array(img)
 
     # Get the geographic extent
     coords = buffered_city_geometry.bounds().getInfo()["coordinates"][0]
     extent = [coords[0][0], coords[2][0], coords[0][1], coords[2][1]]
 
-    # Filter the NOAA VIIRS image collection for the specified city and date range
-    viirs_collection = (
-        ee.ImageCollection("NOAA/VIIRS/001/VNP46A2")
-        .filterBounds(buffered_city_geometry)
-        .filterDate(start_date, end_date)
-        .select("Gap_Filled_DNB_BRDF_Corrected_NTL")
-        .mean()
-        .clip(buffered_city_geometry)
-    )
+    # Create a custom colormap
+    custom_cmap = LinearSegmentedColormap.from_list("custom_cmap", palette)
 
-    # Calculate the minimum and maximum NTL values
-    min_max_NTL = viirs_collection.reduceRegion(
-        reducer=ee.Reducer.minMax(),
-        geometry=buffered_city_geometry,
-        scale=500,
-        maxPixels=1e9,
-    )
+    # Plot the image using Matplotlib with the custom colormap
+    fig, ax = plt.subplots()  # Create a figure and axes
+    cax = ax.imshow(
+        img_array, extent=extent, origin="upper", cmap=custom_cmap
+    )  # Specify the custom colormap
 
-    # Get min and max values and round them to two decimal places
-    NTL_min = round(
-        min_max_NTL.get("Gap_Filled_DNB_BRDF_Corrected_NTL_min").getInfo(), 3
-    )
-    NTL_max = round(
-        min_max_NTL.get("Gap_Filled_DNB_BRDF_Corrected_NTL_max").getInfo(), 3
-    )
+    # Assuming start_date and end_date are in the format 'YYYY-MM-DD'
 
-    # Print the minimum and maximum NTL values
-    print("Minimum NTL value:", NTL_min)
-    print("Maximum NTL value:", NTL_max)
+    start_date = datetime.strptime(start_date, "%Y-%m-%d")
+    end_date = datetime.strptime(end_date, "%Y-%m-%d")
 
-    # Apply threshold to NTL data
-    NTL_threshold = 30
-    viirs_thresholded = viirs_collection.gt(NTL_threshold).selfMask()
+    # Add one day to start_date
 
-    # Define a white color palette for NTL values greater than threshold
-    palette_NTL = ["white"]
+    # Calculate the difference in days
+    date_diff = (end_date - start_date).days
 
-    # Get a URL to a thumbnail image of the thresholded NTL data
-    thumbnail_url_NTL = viirs_thresholded.getThumbURL(
-        {
-            "min": 1,  # As the mask will have values of 1 for true
-            "max": 1,
-            "region": buffered_city_geometry.bounds().getInfo()["coordinates"],
-            "dimensions": 512,
-            "palette": palette_NTL,
-        }
-    )
-
-    # Download the image and convert it to a NumPy array
-    response_NTL = requests.get(thumbnail_url_NTL)
-    img_NTL = Image.open(BytesIO(response_NTL.content))
-    img_array_NTL = np.array(img_NTL)
-
-    # Create a custom colormap for CO
-    custom_cmap_CO = LinearSegmentedColormap.from_list("custom_cmap_CO", palette_CO)
-
-    # Create a custom colormap for NTL
-    custom_cmap_NTL = LinearSegmentedColormap.from_list("custom_cmap_NTL", palette_NTL)
-
-    # Plot the images using Matplotlib with the custom colormaps
-    fig, ax = plt.subplots()
-
-    # Plot CO concentration image
-    cax_CO = ax.imshow(img_array_CO, extent=extent, origin="upper", cmap=custom_cmap_CO)
-
-    # Overlay NTL image with 40% opacity
-    cax_NTL = ax.imshow(
-        img_array_NTL, extent=extent, origin="upper", cmap=custom_cmap_NTL, alpha=1
-    )
-
-    # Set title and labels
-    ax.set_title("CO Concentration and NTL around Hyderabad in 2019 (50km radius)")
-    ax.set_xlabel("Longitude")
-    ax.set_ylabel("Latitude")
+    # Check if the difference is less than 3 days
+    if date_diff < 3:
+        start_date += timedelta(days=1)
+        ax.set_title(
+            f"CO Concentration around {city} from {start_date.strftime('%Y-%m-%d')}"
+        )
+    else:
+        ax.set_title(
+            f"CO Concentration around {city} from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+        )
+    ax.set_xlabel("Longitude (E°)")
+    ax.set_ylabel("Latitude (N°)")
 
     # Define the number of ticks
     num_ticks = 5
 
-    # Calculate the interval between ticks for CO
-    interval_CO = (CO_max - CO_min) / (num_ticks - 1)
+    # Calculate the interval between ticks
+    interval = (NO2_max - NO2_min) / (num_ticks - 1)
 
-    # Calculate the tick positions for CO
-    tick_positions_CO = [CO_min + i * interval_CO for i in range(num_ticks)]
+    # Calculate the tick positions
+    tick_positions = [NO2_min + i * interval for i in range(num_ticks)]
 
-    # Create a dummy ScalarMappable to use with the colorbar for CO
-    norm_CO = plt.Normalize(vmin=CO_min, vmax=CO_max)
-    sm_CO = plt.cm.ScalarMappable(cmap=custom_cmap_CO, norm=norm_CO)
-    sm_CO.set_array([])
+    # Create a dummy ScalarMappable to use with the colorbar
+    norm = plt.Normalize(vmin=NO2_min, vmax=NO2_max)
+    sm = plt.cm.ScalarMappable(cmap=custom_cmap, norm=norm)
+    sm.set_array([])
 
-    # Create the colorbar for CO
-    cbar_CO = plt.colorbar(sm_CO, ax=ax, orientation="vertical")
-    cbar_CO.set_label("CO Concentration (ppb)")
+    # Create the colorbar
+    cbar = plt.colorbar(sm, ax=ax, orientation="vertical")
+    cbar.set_label("NO2 Concentration (ppb)")
 
-    # Set ticker to manually specify tick positions for CO
-    tick_locator_CO = ticker.FixedLocator(tick_positions_CO)
-    cbar_CO.locator = tick_locator_CO
-    cbar_CO.update_ticks()
+    # Set ticker to manually specify tick positions
+    tick_locator = ticker.FixedLocator(tick_positions)
+    cbar.locator = tick_locator
+    cbar.update_ticks()
 
-    # Set custom tick labels for CO
-    tick_labels_CO = ["{:.3f}".format(value) for value in tick_positions_CO]
-    cbar_CO.ax.set_yticklabels(tick_labels_CO, ha="left")
+    # Set custom tick labels
+    tick_labels = ["{:.3f}".format(value) for value in tick_positions]
+    cbar.ax.set_yticklabels(tick_labels, ha="left")
 
     plt.savefig(plot_file_path, bbox_inches="tight", dpi=300)
     plt.close()
@@ -258,7 +223,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     city = sys.argv[1]
-    start_date = sys.argv[2]
-    end_date = sys.argv[3]
-    plot_file_path = "plots/latest_plot.png"  # Static filename
-    CO_Map(city, start_date, end_date, plot_file_path)
+    startDate = sys.argv[2]
+    endDate = sys.argv[3]
+    plot_file_path = "plots/latest_Map.png"  # Static filename
+    CO_Map(city, startDate, endDate, plot_file_path)
